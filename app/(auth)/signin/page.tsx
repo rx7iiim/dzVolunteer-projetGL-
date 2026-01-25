@@ -12,72 +12,273 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, XCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// Custom error types for better error handling
+class AuthenticationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}
+
+class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+class ServerError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number,
+  ) {
+    super(message);
+    this.name = "ServerError";
+  }
+}
 
 export default function SignIn() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{
+    message: string;
+    type: "error" | "warning";
+    details?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
 
   const APIURL = process.env.NEXT_PUBLIC_API_URL;
 
+  // Validate email format
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Validate password strength
+  const validatePassword = (password: string): boolean => {
+    return password.length >= 6;
+  };
+
+  // Client-side validation
+  const validateForm = (): boolean => {
+    const errors: { email?: string; password?: string } = {};
+
+    if (!email.trim()) {
+      errors.email = "Email is required";
+    } else if (!validateEmail(email)) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!password) {
+      errors.password = "Password is required";
+    } else if (!validatePassword(password)) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    if (!email || !password) {
-      setError("Please enter both email and password.");
+    setError(null);
+    setFieldErrors({});
+
+    // Client-side validation
+    if (!validateForm()) {
+      return;
+    }
+
+    // Check if API URL is configured
+    if (!APIURL) {
+      setError({
+        message: "Configuration Error",
+        type: "error",
+        details: "API endpoint is not configured. Please contact support.",
+      });
       return;
     }
 
     setLoading(true);
 
+    // Timeout for requests (30 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     try {
-      const res = await fetch(`${APIURL}/auth/signin`, {
+      const res = await fetch(`${APIURL}/api/accounts/login/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
+        signal: controller.signal,
       });
+      console.log(res);
+      clearTimeout(timeoutId);
 
-      // 2. Safety Check: Ensure response is JSON (prevents crash on HTML error pages)
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        // If server returns HTML (e.g., 500 Bad Gateway), throw a generic error
-        throw new Error("Server error. Please try again later.");
+      // Parse response as JSON directly
+      let data: any;
+
+      try {
+        data = await res.json();
+      } catch (jsonError) {
+        console.error("Failed to parse JSON response:", jsonError);
+        throw new ServerError(
+          "Invalid response format from server. Please try again.",
+          res.status,
+        );
       }
 
-      const data = await res.json();
-
-      // 3. Handle API Logic Errors (401 Unauthorized, 400 Bad Request, etc.)
+      // Handle different HTTP status codes
       if (!res.ok) {
-        throw new Error(data.message || `Login failed (${res.status})`);
+        switch (res.status) {
+          case 400:
+            throw new ValidationError(
+              data.message || "Invalid email or password format",
+            );
+          case 401:
+            throw new AuthenticationError(
+              data.message || "Invalid email or password",
+            );
+          case 403:
+            throw new AuthenticationError(
+              "Account access denied. Please contact support if you believe this is an error.",
+            );
+          case 404:
+            throw new AuthenticationError(
+              "Account not found. Please check your credentials or create a new account.",
+            );
+          case 429:
+            throw new ServerError(
+              "Too many login attempts. Please try again in a few minutes.",
+              429,
+            );
+          case 500:
+          case 502:
+          case 503:
+          case 504:
+            throw new ServerError(
+              "Server is temporarily unavailable. Please try again later.",
+              res.status,
+            );
+          default:
+            throw new ServerError(
+              data.message || `Login failed (Error ${res.status})`,
+              res.status,
+            );
+        }
       }
 
-      // 4. Success: Store user data
-      // Note: Ideally, sensitive tokens should be in HttpOnly cookies, not localStorage
-      localStorage.setItem("user", JSON.stringify(data.user));
+      // Validate response data
+      if (!data.user) {
+        throw new ServerError("Invalid response from server");
+      }
+      console.log(data);
 
-      if (data.token) {
-        localStorage.setItem("token", data.token);
+      // Store user data and tokens
+      try {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        if (data.tokens) {
+          localStorage.setItem("accessToken", data.tokens.access);
+          localStorage.setItem("refreshToken", data.tokens.refresh);
+        }
+      } catch (storageError) {
+        console.error("LocalStorage Error:", storageError);
+        setError({
+          message: "Storage Error",
+          type: "warning",
+          details:
+            "Could not save session data. You may need to sign in again.",
+        });
       }
 
-      router.push("/dashboard");
+      // Redirect based on user type
+      if (
+        data.user.user_type?.toLowerCase() === "organization" ||
+        data.user.user_type === "ORGANIZATION"
+      ) {
+        router.push("/my-missions");
+      } else {
+        router.push("/dashboard/home");
+      }
     } catch (err: unknown) {
       console.error("Login Error:", err);
 
-      // 5. Handle different error types safely
+      // Handle abort (timeout)
+      if (err instanceof Error && err.name === "AbortError") {
+        setError({
+          message: "Request Timeout",
+          type: "error",
+          details:
+            "The server took too long to respond. Please check your connection and try again.",
+        });
+        return;
+      }
+
+      // Handle network errors
       if (err instanceof TypeError && err.message === "Failed to fetch") {
-        setError("Network error. Please check your internet connection.");
+        setError({
+          message: "Network Error",
+          type: "error",
+          details:
+            "Unable to connect to the server. Please check your internet connection.",
+        });
+        return;
+      }
+
+      // Handle custom error types
+      if (err instanceof AuthenticationError) {
+        setError({
+          message: "Authentication Failed",
+          type: "error",
+          details: err.message,
+        });
+      } else if (err instanceof ValidationError) {
+        setError({
+          message: "Validation Error",
+          type: "error",
+          details: err.message,
+        });
+      } else if (err instanceof ServerError) {
+        setError({
+          message: "Server Error",
+          type: "error",
+          details: err.message,
+        });
       } else if (err instanceof Error) {
-        setError(err.message);
+        setError({
+          message: "Unexpected Error",
+          type: "error",
+          details:
+            err.message || "An unexpected error occurred. Please try again.",
+        });
       } else {
-        setError("An unexpected error occurred. Please try again.");
+        setError({
+          message: "Unknown Error",
+          type: "error",
+          details:
+            "An unknown error occurred. Please try again or contact support.",
+        });
       }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -98,8 +299,11 @@ export default function SignIn() {
               variant="destructive"
               className="border-destructive/20 bg-destructive/5"
             >
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <XCircle className="h-4 w-4" />
+              <AlertTitle className="font-semibold">{error.message}</AlertTitle>
+              <AlertDescription className="text-sm mt-1">
+                {error.details}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -116,11 +320,31 @@ export default function SignIn() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (fieldErrors.email) {
+                    setFieldErrors({ ...fieldErrors, email: undefined });
+                  }
+                }}
                 disabled={loading}
-                className="h-10"
+                className={`h-10 ${
+                  fieldErrors.email
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }`}
                 required
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? "email-error" : undefined}
               />
+              {fieldErrors.email && (
+                <p
+                  id="email-error"
+                  className="text-sm text-destructive flex items-center gap-1"
+                >
+                  <AlertCircle className="h-3 w-3" />
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -135,11 +359,33 @@ export default function SignIn() {
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (fieldErrors.password) {
+                    setFieldErrors({ ...fieldErrors, password: undefined });
+                  }
+                }}
                 disabled={loading}
-                className="h-10"
+                className={`h-10 ${
+                  fieldErrors.password
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }`}
                 required
+                aria-invalid={!!fieldErrors.password}
+                aria-describedby={
+                  fieldErrors.password ? "password-error" : undefined
+                }
               />
+              {fieldErrors.password && (
+                <p
+                  id="password-error"
+                  className="text-sm text-destructive flex items-center gap-1"
+                >
+                  <AlertCircle className="h-3 w-3" />
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
 
             <Button

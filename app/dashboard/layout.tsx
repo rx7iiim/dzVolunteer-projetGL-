@@ -50,10 +50,7 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: "/dashboard/home", label: "Home", icon: Home },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-    { href: "/dashboard/browse", label: "Browse Missions", icon: Compass },
-    { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-    { href: "/dashboard/history", label: "History", icon: History },
+
     { href: "/dashboard/profile", label: "Profile & Skills", icon: User },
     { href: "/dashboard/applications", label: "My Applications", icon: Clock },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
