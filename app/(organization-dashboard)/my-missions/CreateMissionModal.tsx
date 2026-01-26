@@ -38,7 +38,7 @@ export default function CreateMissionModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. Set Address ID in initial state (Hardcoded)
+  // Removed address from state as it is now forced in the body
   const initialFormState = {
     title: "",
     description: "",
@@ -47,24 +47,11 @@ export default function CreateMissionModal({
     application_deadline: "",
     estimated_total_hours: "",
     volunteers_needed: "",
-    // API expects lower-case proficiency levels
     proficiency_level: "beginner",
     mission_type: "Local",
-    sdg: "",
-    address: "2bb86be1-b980-4d3e-a780-68a4d6145a4a", // Hardcoded Address ID
   };
 
   const [formData, setFormData] = useState(initialFormState);
-
-  // Example SDGs - (Ensure these match your backend IDs or fetch them dynamically)
-  const sdgOptions = [
-    { id: 1, name: "No Poverty" },
-    { id: 2, name: "Zero Hunger" },
-    { id: 3, name: "Good Health and Well-being" },
-    { id: 4, name: "Quality Education" },
-    { id: 13, name: "Climate Action" },
-    { id: 14, name: "Life Below Water" },
-  ];
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -83,40 +70,72 @@ export default function CreateMissionModal({
     // Helper to format dates correctly for the API (ISO String)
     const toDateTime = (dateStr: string) => {
       if (!dateStr) return null;
-      // Appends current time or midnight to satisfy datetime requirements
       return new Date(dateStr).toISOString();
     };
 
-    // Prepare the payload
-    const payload = {
-      ...formData,
-      // Ensure numbers are numbers
-      volunteers_needed: parseInt(formData.volunteers_needed),
-      estimated_total_hours: formData.estimated_total_hours
-        ? parseInt(formData.estimated_total_hours)
-        : 0,
-
-      // Handle Date conversion
-      start_date: toDateTime(formData.start_date),
-      end_date: toDateTime(formData.end_date),
-      application_deadline: toDateTime(formData.application_deadline),
-
-      // SDG is optional; map sentinel 'none' to null, otherwise send UUID/string
-      sdg: formData.sdg === "none" ? null : formData.sdg || null,
-
-      // Address is already set in state as string, no change needed
+    // Calculate application deadline (1 day before start date at 23:59:59)
+    const getApplicationDeadline = () => {
+      if (!formData.application_deadline && formData.start_date) {
+        const startDate = new Date(formData.start_date);
+        startDate.setDate(startDate.getDate() - 1);
+        startDate.setHours(23, 59, 59, 0);
+        return startDate.toISOString();
+      }
+      // Ensure the manually entered deadline is before start date
+      if (formData.application_deadline && formData.start_date) {
+        const deadline = new Date(formData.application_deadline);
+        const startDate = new Date(formData.start_date);
+        if (deadline >= startDate) {
+          // Set deadline to 1 day before start date
+          startDate.setDate(startDate.getDate() - 1);
+          startDate.setHours(23, 59, 59, 0);
+          return startDate.toISOString();
+        }
+        deadline.setHours(23, 59, 59, 0);
+        return deadline.toISOString();
+      }
+      return toDateTime(formData.application_deadline);
     };
 
+    // Prepare the payload - only required fields
+    // Hardcoded values from API testing
+    const HARDCODED_ORGANIZATION = "2be861e2-11df-42cc-a3a7-3757f2663574";
+    const HARDCODED_ADDRESS = "2bb86be1-b980-4d3e-a780-68a4d6145a4a";
+    const HARDCODED_SDG = "132b7ae2-37c2-4199-ba87-380110071c0e";
+
+    const payload: Record<string, unknown> = {
+      title: formData.title,
+      description: formData.description,
+      organization: HARDCODED_ORGANIZATION,
+      address: HARDCODED_ADDRESS,
+      start_date: toDateTime(formData.start_date),
+      end_date: toDateTime(formData.end_date),
+      application_deadline: getApplicationDeadline(),
+      estimated_total_hours: formData.estimated_total_hours
+        ? parseInt(formData.estimated_total_hours)
+        : undefined,
+      volunteers_needed: parseInt(formData.volunteers_needed),
+      proficiency_level: formData.proficiency_level,
+      mission_type: "one_time",
+      sdg: HARDCODED_SDG,
+    };
+
+    console.log("Sending payload:", JSON.stringify(payload, null, 2));
+
     const APIURL = process.env.NEXT_PUBLIC_API_URL;
+    console.log("API URL:", APIURL);
 
     try {
       setLoading(true);
       setError(null);
 
       const token = localStorage.getItem("accessToken");
+      console.log("Token exists:", !!token);
       if (!token) {
-        throw new Error("No access token found");
+        throw new Error("No access token found. Please log in again.");
       }
+
+      console.log("Making request to:", `${APIURL}/api/missions/create/`);
 
       const response = await fetch(`${APIURL}/api/missions/create/`, {
         method: "POST",
@@ -127,13 +146,22 @@ export default function CreateMissionModal({
         body: JSON.stringify(payload),
       });
 
+      console.log("Response status:", response.status);
+      const responseText = await response.text();
+      console.log("Response body:", responseText);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData: { detail?: string; error?: string } = {};
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { detail: responseText };
+        }
         const message =
           errorData.detail ||
           errorData.error ||
           response.statusText ||
-          "Failed to create mission";
+          "An unknown error occurred while creating the mission.";
         throw new Error(message);
       }
 
@@ -143,7 +171,9 @@ export default function CreateMissionModal({
       onClose();
     } catch (err: any) {
       console.error("Failed to create mission:", err);
-      setError(err.message || "Failed to create mission");
+      setError(
+        err.message || "An unexpected error occurred. Please try again later.",
+      );
     } finally {
       setLoading(false);
     }
@@ -151,7 +181,7 @@ export default function CreateMissionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-150 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Mission</DialogTitle>
           <DialogDescription>
@@ -231,28 +261,6 @@ export default function CreateMissionModal({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Sustainable Development Goal (SDG)</Label>
-            <Select
-              name="sdg"
-              value={formData.sdg}
-              onValueChange={(val) => handleSelectChange("sdg", val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select relevant SDG (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {/* Use a non-empty sentinel value and map it to null in payload */}
-                <SelectItem value="none">No SDG</SelectItem>
-                {sdgOptions.map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>
-                    {s.id}. {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start_date">Start Date</Label>
@@ -313,8 +321,6 @@ export default function CreateMissionModal({
               />
             </div>
           </div>
-
-          {/* Address Input Removed - ID is hardcoded in submission */}
 
           <DialogFooter className="mt-4">
             <Button type="button" variant="outline" onClick={onClose}>

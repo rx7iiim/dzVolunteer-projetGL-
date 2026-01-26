@@ -56,6 +56,8 @@ export default function AddVolunteerSkillComponent({
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
 
   const [proficiency, setProficiency] = useState("intermediate");
+  const [yearsOfExperience, setYearsOfExperience] = useState("1");
+  const [notes, setNotes] = useState("");
   const [lastUsedDate, setLastUsedDate] = useState("");
   const [supportingUrl, setSupportingUrl] = useState("");
   const [isPrimary, setIsPrimary] = useState(false);
@@ -115,46 +117,138 @@ export default function AddVolunteerSkillComponent({
       return;
     }
 
+    if (!yearsOfExperience || parseInt(yearsOfExperience) < 0) {
+      setError("Please enter valid years of experience.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
       const token = localStorage.getItem("accessToken");
       if (!token) {
-        setError("You must be logged in to add a skill.");
+        setError("You must be logged in to add a skill. Please sign in again.");
         setIsSubmitting(false);
         return;
       }
 
-      const formData = new FormData();
-      formData.append("skill_id", selectedSkillId);
-      formData.append("proficiency_level", proficiency);
-      if (lastUsedDate) formData.append("last_used_date", lastUsedDate);
-      if (supportingUrl) formData.append("supporting_url", supportingUrl);
-      if (isPrimary) formData.append("is_primary", "true");
-      if (selectedFile) formData.append("supporting_document", selectedFile);
+      // Build payload matching API requirements
+      const payload = {
+        skill_id: selectedSkillId,
+        years_of_experience: parseInt(yearsOfExperience) || 1,
+        proficiency_level: proficiency,
+        notes: notes.trim() || undefined,
+      };
+
+      console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
       const response = await fetch(`${APIURL}/api/skills/volunteer-skills/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: formData,
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `Failed to create skill: ${response.statusText}`,
-        );
+      console.log("Response status:", response.status);
+      const responseText = await response.text();
+      console.log("Response body:", responseText);
+
+      // Parse response
+      let responseData: Record<string, unknown> = {};
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { detail: responseText };
       }
 
-      const data = await response.json();
-      setResponseData(data);
+      if (!response.ok) {
+        console.error("Error response:", responseData);
+
+        // Handle different error formats
+        let errorMessage = "Failed to add skill.";
+
+        // Check for field-specific errors (e.g., {"skill_id": ["This field is required."]})
+        if (responseData.errors && typeof responseData.errors === "object") {
+          const fieldErrors = Object.entries(
+            responseData.errors as Record<string, string[]>,
+          )
+            .map(
+              ([field, messages]) =>
+                `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`,
+            )
+            .join("; ");
+          errorMessage = fieldErrors;
+        }
+        // Check for direct field errors (e.g., {"skill_id": ["Invalid pk..."]})
+        else if (
+          typeof responseData === "object" &&
+          !responseData.detail &&
+          !responseData.error
+        ) {
+          const fieldErrors = Object.entries(responseData)
+            .filter(([key]) => key !== "status" && key !== "code")
+            .map(([field, messages]) => {
+              if (Array.isArray(messages)) {
+                return `${field}: ${messages.join(", ")}`;
+              }
+              return `${field}: ${messages}`;
+            })
+            .join("; ");
+          if (fieldErrors) errorMessage = fieldErrors;
+        }
+        // Check for detail or error message
+        else if (responseData.detail) {
+          errorMessage = String(responseData.detail);
+        } else if (responseData.error) {
+          errorMessage = String(responseData.error);
+        } else if (responseData.message) {
+          errorMessage = String(responseData.message);
+        }
+
+        // Handle specific HTTP status codes
+        switch (response.status) {
+          case 400:
+            errorMessage = `Invalid request: ${errorMessage}`;
+            break;
+          case 401:
+            errorMessage = "Session expired. Please sign in again.";
+            break;
+          case 403:
+            errorMessage = "You don't have permission to perform this action.";
+            break;
+          case 404:
+            errorMessage = "The skill you selected no longer exists.";
+            break;
+          case 409:
+            errorMessage = "You already have this skill in your profile.";
+            break;
+          case 500:
+            errorMessage = "Server error. Please try again later.";
+            break;
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      console.log("Success response:", responseData);
+      setResponseData(responseData);
       setStep("success");
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      console.error("Catch error:", err);
+
+      // Handle network errors
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        setError("Network error. Please check your internet connection.");
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again.",
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -276,10 +370,10 @@ export default function AddVolunteerSkillComponent({
               </div>
             </div>
 
-            {/* Proficiency & Date */}
+            {/* Proficiency & Years of Experience */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Proficiency</Label>
+                <Label>Proficiency *</Label>
                 <Select value={proficiency} onValueChange={setProficiency}>
                   <SelectTrigger>
                     <SelectValue />
@@ -294,13 +388,36 @@ export default function AddVolunteerSkillComponent({
               </div>
 
               <div className="space-y-2">
-                <Label>Last Used (Optional)</Label>
+                <Label>Years of Experience *</Label>
                 <Input
-                  type="date"
-                  value={lastUsedDate}
-                  onChange={(e) => setLastUsedDate(e.target.value)}
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={yearsOfExperience}
+                  onChange={(e) => setYearsOfExperience(e.target.value)}
+                  placeholder="e.g. 2"
                 />
               </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes (Optional)</Label>
+              <Input
+                placeholder="e.g. I have used this skill in several previous projects."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+
+            {/* Last Used Date */}
+            <div className="space-y-2">
+              <Label>Last Used (Optional)</Label>
+              <Input
+                type="date"
+                value={lastUsedDate}
+                onChange={(e) => setLastUsedDate(e.target.value)}
+              />
             </div>
 
             {/* Evidence Section */}
