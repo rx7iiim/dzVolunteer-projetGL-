@@ -23,7 +23,21 @@ export default function OrganizationSidebar() {
       href: "/my-missions",
       icon: Briefcase,
     },
-
+    {
+      title: "All Platform Missions",
+      href: "/all-platform-missions",
+      icon: Briefcase,
+    },
+    {
+      title: "Published Missions",
+      href: "/published-missions",
+      icon: Briefcase,
+    },
+    {
+      title: "Applicants",
+      href: "/apllyers",
+      icon: Users,
+    },
     {
       title: "Profile",
       href: "/profile",

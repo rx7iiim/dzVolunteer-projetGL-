@@ -17,6 +17,9 @@ import {
   UserX,
   Search,
   Filter,
+  Globe,
+  Plus,
+  Star,
 } from "lucide-react";
 
 // UI Components
@@ -47,6 +50,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+// Import the Add SDG Modal
+import AddSdgToMissionModal from "./AddSdgToMissionModal";
+import RateVolunteerModal from "./RateVolunteerModal";
+import RatingStatusModal from "./RatingStatusModal";
+
 // Configuration
 const APIURL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -71,6 +79,8 @@ interface Participant {
 interface MissionParticipantsResponse {
   mission_id: string;
   mission_title: string;
+  sdg_title: string;
+  sdg_number: number;
   volunteers_needed: number;
   volunteers_approved: number;
   participants: Participant[];
@@ -99,6 +109,23 @@ export default function MissionParticipantsPage() {
   const [updatingParticipantId, setUpdatingParticipantId] = useState<
     string | null
   >(null);
+
+  // State for Add SDG Modal
+  const [isAddSdgModalOpen, setIsAddSdgModalOpen] = useState(false);
+
+  // State for Rate Volunteer Modal
+  const [isRateVolunteerModalOpen, setIsRateVolunteerModalOpen] =
+    useState(false);
+  const [selectedParticipationId, setSelectedParticipationId] = useState<
+    string | null
+  >(null);
+  const [selectedVolunteerName, setSelectedVolunteerName] =
+    useState<string>("");
+
+  // State for Rating Status Modal
+  const [isRatingStatusModalOpen, setIsRatingStatusModalOpen] = useState(false);
+  const [selectedRatingParticipationId, setSelectedRatingParticipationId] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const fetchParticipants = async () => {
@@ -237,6 +264,63 @@ export default function MissionParticipantsPage() {
     }
   };
 
+  // Function to refresh mission data after adding SDG
+  const refreshMissionData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get access token
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(
+        `${APIURL}/api/missions/${missionId}/participants/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            response.statusText ||
+            "Request failed",
+        );
+      }
+
+      const data = await response.json();
+      setMissionData(data);
+    } catch (err: any) {
+      setError(err.message);
+      console.error("Failed to refresh mission data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to open rating modal
+  const openRateVolunteerModal = (
+    participationId: string,
+    volunteerName: string,
+  ) => {
+    setSelectedParticipationId(participationId);
+    setSelectedVolunteerName(volunteerName);
+    setIsRateVolunteerModalOpen(true);
+  };
+
+  // Function to open rating status modal
+  const openRatingStatusModal = (participationId: string) => {
+    setSelectedRatingParticipationId(participationId);
+    setIsRatingStatusModalOpen(true);
+  };
+
   // Filter participants based on status and search term
   const filteredParticipants =
     missionData?.participants.filter((participant) => {
@@ -336,10 +420,28 @@ export default function MissionParticipantsPage() {
           <h1 className="text-2xl font-bold tracking-tight">
             {missionData.mission_title}
           </h1>
-          <p className="text-muted-foreground">
-            Manage participants for this mission
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground">
+              Manage participants for this mission
+            </p>
+            {missionData.sdg_number && missionData.sdg_title && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Globe className="h-3 w-3" />
+                SDG {missionData.sdg_number}: {missionData.sdg_title}
+              </Badge>
+            )}
+          </div>
         </div>
+
+        {/* Add SDG button */}
+        <Button
+          variant="outline"
+          onClick={() => setIsAddSdgModalOpen(true)}
+          className="flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add SDG
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -547,6 +649,34 @@ export default function MissionParticipantsPage() {
                                 </Button>
                               </>
                             )}
+
+                            {participant.status === "completed" && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    openRateVolunteerModal(
+                                      participant.id,
+                                      participant.volunteer_name,
+                                    )
+                                  }
+                                >
+                                  <Star className="h-3 w-3 mr-1" />
+                                  Rate Volunteer
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    openRatingStatusModal(participant.id)
+                                  }
+                                >
+                                  <Star className="h-3 w-3 mr-1" />
+                                  View Rating Status
+                                </Button>
+                              </>
+                            )}
                           </div>
                           <Button variant="ghost" size="sm">
                             View Details
@@ -561,6 +691,30 @@ export default function MissionParticipantsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Add SDG to Mission Modal */}
+      <AddSdgToMissionModal
+        isOpen={isAddSdgModalOpen}
+        onClose={() => setIsAddSdgModalOpen(false)}
+        missionId={missionId}
+        onSuccess={refreshMissionData}
+      />
+
+      {/* Rate Volunteer Modal */}
+      <RateVolunteerModal
+        isOpen={isRateVolunteerModalOpen}
+        onClose={() => setIsRateVolunteerModalOpen(false)}
+        participationId={selectedParticipationId || ""}
+        volunteerName={selectedVolunteerName}
+        onSuccess={refreshMissionData}
+      />
+
+      {/* Rating Status Modal */}
+      <RatingStatusModal
+        isOpen={isRatingStatusModalOpen}
+        onClose={() => setIsRatingStatusModalOpen(false)}
+        participationId={selectedRatingParticipationId || ""}
+      />
     </div>
   );
 }
