@@ -18,7 +18,6 @@ import {
   MoreHorizontal,
   AlertCircle,
 } from "lucide-react";
-import { CreateMissionButton } from "@/components/createmissionbutton";
 
 // --- Types ---
 interface ApiMission {
@@ -405,9 +404,7 @@ export default function HomeFeedPage() {
           </Card>
 
           {/* Create Mission Button */}
-          <div className="sticky top-24">
-            <CreateMissionButton />
-          </div>
+          <div className="sticky top-24"></div>
         </aside>
 
         {/* --- CENTER FEED (Main Content) --- */}
@@ -480,33 +477,6 @@ export default function HomeFeedPage() {
 
                 {/* The Card */}
                 <MissionCard {...mission} />
-
-                {/* Social Actions */}
-                <div className="mt-[-1px] relative z-10 bg-card border-x border-b border-border rounded-b-xl p-1 flex justify-between items-center px-2 shadow-sm mb-8">
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    >
-                      ❤️ Save
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    >
-                      ↗ Share
-                    </Button>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 text-xs text-muted-foreground"
-                  >
-                    Details
-                  </Button>
-                </div>
               </div>
             ))}
 
