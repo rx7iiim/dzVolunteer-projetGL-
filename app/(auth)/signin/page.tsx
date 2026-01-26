@@ -211,10 +211,15 @@ export default function SignIn() {
 
       // Redirect based on user type
       if (
+        data.user.user_type?.toLowerCase() === "admin" ||
+        data.user.user_type === "ADMIN"
+      ) {
+        router.push("/admin/all-skills");
+      } else if (
         data.user.user_type?.toLowerCase() === "organization" ||
         data.user.user_type === "ORGANIZATION"
       ) {
-        router.push("/my-missions");
+        router.push("/home");
       } else {
         router.push("/dashboard/home");
       }

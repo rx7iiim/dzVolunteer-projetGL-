@@ -7,14 +7,12 @@ import {
   Calendar,
   MapPin,
   Users,
-  Plus,
-  Loader2,
-  AlertCircle,
   Globe,
   Clock,
-  MoreVertical,
-  Edit,
   Eye,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 // UI Components
@@ -28,17 +26,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
-// Import the Create and Edit Modal Components
-import CreateMissionModal from "./CreateMissionModal";
-import EditMissionModal from "./EditMissionModal";
 const APIURL = process.env.NEXT_PUBLIC_API_URL;
+
 // --- Types ---
 interface Mission {
   id: string;
@@ -56,34 +46,21 @@ interface Mission {
   estimated_total_hours: number;
 }
 
-export default function OrganizationMissionsList() {
+export default function PublishedMissionsPage() {
   // --- State ---
   const router = useRouter();
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // --- Fetch Logic ---
-  const fetchMissions = useCallback(async () => {
+  const fetchPublishedMissions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get access token
-      const token = localStorage.getItem("accessToken");
-      if (!token) {
-        throw new Error("No access token found");
-      }
-
-      // Fetch with authorization header
-      const response = await fetch(`${APIURL}/api/missions/my-missions/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Fetch public endpoint (no auth required)
+      const response = await fetch(`${APIURL}/api/missions/`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -96,7 +73,6 @@ export default function OrganizationMissionsList() {
       }
 
       const data = await response.json();
-      console.log(data);
 
       // Normalize API response to always be an array
       if (Array.isArray(data)) {
@@ -121,8 +97,8 @@ export default function OrganizationMissionsList() {
 
   // Initial Load
   useEffect(() => {
-    fetchMissions();
-  }, [fetchMissions]);
+    fetchPublishedMissions();
+  }, [fetchPublishedMissions]);
 
   // --- Helpers ---
   const formatDate = (dateString: string) => {
@@ -160,14 +136,11 @@ export default function OrganizationMissionsList() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">My Missions</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Published Missions</h2>
           <p className="text-muted-foreground">
-            Manage your organization's volunteer opportunities.
+            All published missions available to volunteers.
           </p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Create New Mission
-        </Button>
       </div>
 
       {/* Error Message (Only for critical errors, not empty lists) */}
@@ -194,23 +167,16 @@ export default function OrganizationMissionsList() {
       ) : shouldShowEmptyState ? (
         // Empty State
         <div className="text-center py-20 border-2 border-dashed rounded-xl bg-slate-50">
-          <h3 className="text-lg font-medium">No missions found</h3>
+          <h3 className="text-lg font-medium">No published missions found</h3>
           <p className="text-muted-foreground mb-4">
-            Get started by creating your first mission.
+            There are currently no published missions available.
           </p>
-          <Button variant="outline" onClick={() => setIsCreateModalOpen(true)}>
-            Create Mission
-          </Button>
         </div>
       ) : (
         // Missions Grid
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {missions.map((mission) => (
-            <Card
-              key={mission.id}
-              className="flex flex-col hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => router.push(`/my-missions/${mission.id}`)}
-            >
+            <Card key={mission.id} className="flex flex-col">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <Badge
@@ -219,36 +185,6 @@ export default function OrganizationMissionsList() {
                   >
                     {mission.status}
                   </Badge>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="-mr-2 -mt-2"
-                      >
-                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/my-missions/${mission.id}`);
-                        }}
-                      >
-                        <Eye className="mr-2 h-4 w-4" /> View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingMissionId(mission.id);
-                          setIsEditModalOpen(true);
-                        }}
-                      >
-                        <Edit className="mr-2 h-4 w-4" /> Edit Mission
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
                 <CardTitle className="line-clamp-1 text-lg">
                   {mission.title}
@@ -280,6 +216,12 @@ export default function OrganizationMissionsList() {
                     <Clock className="h-4 w-4" />
                     <span>{mission.estimated_total_hours} Hours est.</span>
                   </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    <span>
+                      {mission.organization_name}
+                    </span>
+                  </div>
                 </div>
               </CardContent>
 
@@ -304,25 +246,16 @@ export default function OrganizationMissionsList() {
                     />
                   </div>
                 </div>
-
+                
                 <div className="w-full flex justify-between pt-2">
                   <Button variant="outline" size="sm" asChild>
-                    <Link
-                      href={`/my-missions/${mission.id}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <Link href={`/my-missions/${mission.id}`}>
                       <Eye className="h-4 w-4 mr-2" />
                       View Details
                     </Link>
                   </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link
-                      href={`/apllyers/${mission.id}/participants`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Applicants
-                    </Link>
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="h-4 w-4" />
                   </Button>
                 </div>
               </CardFooter>
@@ -330,24 +263,6 @@ export default function OrganizationMissionsList() {
           ))}
         </div>
       )}
-
-      {/* Create Mission Modal */}
-      <CreateMissionModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={fetchMissions}
-      />
-
-      {/* Edit Mission Modal */}
-      <EditMissionModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingMissionId(null);
-        }}
-        missionId={editingMissionId || ""}
-        onSuccess={fetchMissions}
-      />
     </div>
   );
 }
