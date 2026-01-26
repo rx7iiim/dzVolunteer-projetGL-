@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthFetch } from "@/hooks/useAuthFetch";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -10,6 +9,14 @@ import {
   AlertCircle,
   Calendar,
   Briefcase,
+  Clock,
+  Mail,
+  Phone,
+  CheckCircle,
+  XCircle,
+  Clock as ClockIcon,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 
 // UI Components
@@ -23,11 +30,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Configuration
 const APIURL = process.env.NEXT_PUBLIC_API_URL;
 
-// Reusing the Mission Interface
+// Interfaces
 interface Mission {
   id: string;
   title: string;
@@ -41,22 +56,85 @@ interface Mission {
   status: string;
 }
 
+interface Participant {
+  id: string;
+  volunteer_id: string;
+  volunteer_name: string;
+  volunteer_email: string;
+  volunteer_phone: string;
+  mission_title: string;
+  status: string;
+  application_message: string;
+  actual_hours_worked: number | null;
+  applied_at: string;
+  status_changed_at: string;
+  review_notes: string;
+  volunteer_rating: number | null;
+  organization_rating: number | null;
+}
+
+interface MissionParticipantsResponse {
+  mission_id: string;
+  mission_title: string;
+  volunteers_needed: number;
+  volunteers_approved: number;
+  participants: Participant[];
+  total_participants: number;
+  statistics: {
+    total: number;
+    pending: number;
+    accepted: number;
+    rejected: number;
+    completed: number;
+    cancelled: number;
+  };
+}
+
 export default function ApplicantsDirectoryPage() {
   const router = useRouter();
-  const { authFetch, loading, error } = useAuthFetch();
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 1. Fetch Organization Missions
   const fetchMissions = useCallback(async () => {
     try {
-      const data = await authFetch(`${APIURL}/api/missions/my-missions/`);
+      setLoading(true);
+      setError(null);
+
+      // Get access token
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(`${APIURL}/api/missions/my-missions/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            response.statusText ||
+            "Request failed",
+        );
+      }
+
+      const data = await response.json();
       setMissions(data || []);
-    } catch (err) {
+    } catch (err: any) {
+      setError(err.message);
       console.error("Failed to load missions", err);
       // If 404/Empty, we just show empty list
       setMissions([]);
+    } finally {
+      setLoading(false);
     }
-  }, [authFetch]);
+  }, []);
 
   useEffect(() => {
     fetchMissions();
