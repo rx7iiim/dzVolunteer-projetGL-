@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
-import { useAuthFetch } from "@/hooks/useAuthFetch";
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -36,7 +35,8 @@ export default function CreateMissionModal({
   onClose,
   onSuccess,
 }: CreateMissionModalProps) {
-  const { authFetch, loading, error } = useAuthFetch();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 1. Set Address ID in initial state (Hardcoded)
   const initialFormState = {
@@ -47,7 +47,8 @@ export default function CreateMissionModal({
     application_deadline: "",
     estimated_total_hours: "",
     volunteers_needed: "",
-    proficiency_level: "Beginner",
+    // API expects lower-case proficiency levels
+    proficiency_level: "beginner",
     mission_type: "Local",
     sdg: "",
     address: "2bb86be1-b980-4d3e-a780-68a4d6145a4a", // Hardcoded Address ID
@@ -100,9 +101,8 @@ export default function CreateMissionModal({
       end_date: toDateTime(formData.end_date),
       application_deadline: toDateTime(formData.application_deadline),
 
-      // Handle SDG (API expects UUID? or ID? Adjust based on your backend)
-      // If backend expects integer ID for SDG:
-      sdg: formData.sdg ? parseInt(formData.sdg) : null,
+      // SDG is optional; map sentinel 'none' to null, otherwise send UUID/string
+      sdg: formData.sdg === "none" ? null : formData.sdg || null,
 
       // Address is already set in state as string, no change needed
     };
@@ -110,17 +110,42 @@ export default function CreateMissionModal({
     const APIURL = process.env.NEXT_PUBLIC_API_URL;
 
     try {
-      await authFetch(`${APIURL}/api/missions/create/`, {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(`${APIURL}/api/missions/create/`, {
         method: "POST",
-        body: payload,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const message =
+          errorData.detail ||
+          errorData.error ||
+          response.statusText ||
+          "Failed to create mission";
+        throw new Error(message);
+      }
 
       // Reset Form
       setFormData(initialFormState);
       onSuccess();
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create mission:", err);
+      setError(err.message || "Failed to create mission");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -197,9 +222,10 @@ export default function CreateMissionModal({
                   <SelectValue placeholder="Select level" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Beginner">Beginner</SelectItem>
-                  <SelectItem value="Intermediate">Intermediate</SelectItem>
-                  <SelectItem value="Expert">Expert</SelectItem>
+                  <SelectItem value="beginner">Beginner</SelectItem>
+                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                  <SelectItem value="expert">Expert</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -213,9 +239,11 @@ export default function CreateMissionModal({
               onValueChange={(val) => handleSelectChange("sdg", val)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select relevant SDG" />
+                <SelectValue placeholder="Select relevant SDG (optional)" />
               </SelectTrigger>
               <SelectContent>
+                {/* Use a non-empty sentinel value and map it to null in payload */}
+                <SelectItem value="none">No SDG</SelectItem>
                 {sdgOptions.map((s) => (
                   <SelectItem key={s.id} value={String(s.id)}>
                     {s.id}. {s.name}
