@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthFetch } from "@/hooks/useAuthFetch";
 import {
   User,
   Mail,
@@ -81,7 +80,7 @@ interface OrgProfileData {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { authFetch, loading: apiLoading } = useAuthFetch();
+  const [apiLoading, setApiLoading] = useState(false);
 
   // --- State ---
   const [user, setUser] = useState<UserData | null>(null);
@@ -111,31 +110,52 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchAllData = async () => {
       try {
+        // Get access token
+        const token = localStorage.getItem("accessToken");
+        if (!token) {
+          throw new Error("No access token found");
+        }
+
         // A. Fetch Current User (Fresh Data)
-        const userData = await authFetch(`${APIURL}/api/accounts/me/`);
-        if (userData && userData.user) {
-          setUser(userData.user);
-          // Update local storage to keep it in sync
-          localStorage.setItem("user", JSON.stringify(userData.user));
+        const userResponse = await fetch(`${APIURL}/api/accounts/me/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-          // Pre-fill user form
-          setUserForm({
-            first_name: userData.user.first_name || "",
-            last_name: userData.user.last_name || "",
-            phone_number: userData.user.phone_number || "",
-          });
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          if (userData && userData.user) {
+            setUser(userData.user);
+            // Update local storage to keep it in sync
+            localStorage.setItem("user", JSON.stringify(userData.user));
 
-          // B. Fetch Organization Profile if exists
-          if (userData.user.has_organization_profile) {
-            const orgData = await authFetch(
-              `${APIURL}/api/accounts/organization-profile/`,
-            );
-            if (orgData) {
-              setOrgProfile(orgData);
-              setOrgForm({
-                name: orgData.name || "",
-                description: orgData.description || "",
-              });
+            // Pre-fill user form
+            setUserForm({
+              first_name: userData.user.first_name || "",
+              last_name: userData.user.last_name || "",
+              phone_number: userData.user.phone_number || "",
+            });
+
+            // B. Fetch Organization Profile if exists
+            if (userData.user.has_organization_profile) {
+              const orgResponse = await fetch(
+                `${APIURL}/api/accounts/organization-profile/`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
+
+              if (orgResponse.ok) {
+                const orgData = await orgResponse.json();
+                setOrgProfile(orgData);
+                setOrgForm({
+                  name: orgData.name || "",
+                  description: orgData.description || "",
+                });
+              }
             }
           }
         }
@@ -147,17 +167,36 @@ export default function ProfilePage() {
     };
 
     fetchAllData();
-  }, [authFetch]);
+  }, []);
 
   // --- 2. Actions ---
 
   // Update User Profile
   const handleUserUpdate = async () => {
     try {
-      const res = await authFetch(`${APIURL}/api/accounts/me/update/`, {
+      setApiLoading(true);
+
+      // Get access token
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(`${APIURL}/api/accounts/me/update/`, {
         method: "PUT",
-        body: userForm,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(userForm),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.error || response.statusText || "Request failed");
+      }
+
+      const res = await response.json();
       if (res && res.user) {
         setUser(res.user); // Update UI
         localStorage.setItem("user", JSON.stringify(res.user)); // Sync Storage
@@ -165,6 +204,8 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error("User update failed", err);
+    } finally {
+      setApiLoading(false);
     }
   };
 
@@ -174,11 +215,30 @@ export default function ProfilePage() {
       alert("New passwords do not match.");
       return;
     }
+
     try {
-      await authFetch(`${APIURL}/api/accounts/change-password/`, {
+      setApiLoading(true);
+
+      // Get access token
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(`${APIURL}/api/accounts/change-password/`, {
         method: "POST",
-        body: passwordForm,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(passwordForm),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.error || response.statusText || "Request failed");
+      }
+
       alert("Password changed successfully.");
       setIsPasswordOpen(false);
       setPasswordForm({
@@ -188,32 +248,72 @@ export default function ProfilePage() {
       });
     } catch (err) {
       console.error("Password change failed", err);
+    } finally {
+      setApiLoading(false);
     }
   };
 
   // Update Org Profile
   const handleOrgUpdate = async () => {
     try {
-      const res = await authFetch(
+      setApiLoading(true);
+
+      // Get access token
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(
         `${APIURL}/api/accounts/organization-profile/`,
         {
           method: "PATCH",
-          body: orgForm,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(orgForm),
         },
       );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.error || response.statusText || "Request failed");
+      }
+
+      const res = await response.json();
       setOrgProfile(res.profile);
       setIsOrgEditOpen(false);
     } catch (err) {
       console.error("Org update failed", err);
+    } finally {
+      setApiLoading(false);
     }
   };
 
   // Delete Org Profile
   const handleDeleteOrg = async () => {
     try {
-      await authFetch(`${APIURL}/api/accounts/organization-profile/`, {
+      setApiLoading(true);
+
+      // Get access token
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const response = await fetch(`${APIURL}/api/accounts/organization-profile/`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.error || response.statusText || "Request failed");
+      }
+
       if (user) {
         const updatedUser = { ...user, has_organization_profile: false };
         setUser(updatedUser);
@@ -223,6 +323,8 @@ export default function ProfilePage() {
       setIsDeleteOpen(false);
     } catch (err) {
       console.error("Delete failed", err);
+    } finally {
+      setApiLoading(false);
     }
   };
 

@@ -15,10 +15,13 @@ import {
   LogOut,
   Menu,
   X,
-  Calendar,
+  Calendar as CalendarIcon,
   History,
   icons,
   Home,
+  CheckCircle,
+  Trophy,
+  Heart,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -32,15 +35,32 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
-    if (!userData) {
+    const accessToken = localStorage.getItem("accessToken");
+
+    if (!userData || !accessToken) {
       router.push("/signin");
       return;
     }
-    setUser(JSON.parse(userData));
+
+    const parsedUser = JSON.parse(userData);
+
+    // Check if user type is volunteer
+    if (parsedUser.user_type !== "volunteer") {
+      // Redirect to appropriate dashboard based on user type
+      if (parsedUser.type === "organization") {
+        router.push("/home");
+      } else {
+        router.push("/signin");
+      }
+      return;
+    }
+
+    setUser(parsedUser);
   }, [router]);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("accessToken");
     router.push("/signin");
   };
 
@@ -50,7 +70,17 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: "/dashboard/home", label: "Home", icon: Home },
-
+    {
+      href: "/dashboard/accepted-missions",
+      label: "Accepted Missions",
+      icon: CheckCircle,
+    },
+    {
+      href: "/dashboard/completed-missions",
+      label: "Completed Missions",
+      icon: Trophy,
+    },
+    { href: "/dashboard/calendar", label: "Calendar", icon: CalendarIcon },
     { href: "/dashboard/profile", label: "Profile & Skills", icon: User },
     { href: "/dashboard/applications", label: "My Applications", icon: Clock },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
