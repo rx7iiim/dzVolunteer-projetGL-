@@ -315,15 +315,6 @@ export default function OrganizationMissionsList() {
                       View Details
                     </Link>
                   </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link
-                      href={`/my-missions/${mission.id}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Applicants
-                    </Link>
-                  </Button>
                 </div>
               </CardFooter>
             </Card>
