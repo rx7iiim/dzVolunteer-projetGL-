@@ -75,107 +75,210 @@ export default function AdminDashboardPage() {
 
   // Fetch all volunteer skills
   const fetchAllSkills = useCallback(async () => {
+    console.log("[fetchAllSkills] Starting to fetch all volunteer skills...");
+    console.log("[fetchAllSkills] API URL:", APIURL);
+
     try {
       setLoadingSkills(true);
       setError(null);
 
       const token = localStorage.getItem("accessToken");
+      console.log("[fetchAllSkills] Access token exists:", !!token);
+      console.log(
+        "[fetchAllSkills] Token preview:",
+        token ? `${token.substring(0, 20)}...` : "null",
+      );
+
       if (!token) {
+        console.error("[fetchAllSkills] No access token found in localStorage");
         throw new Error("No access token found. Please sign in.");
       }
 
-      const response = await fetch(`${APIURL}/api/volunteer-skills/`, {
+      const requestUrl = `${APIURL}/api/volunteer-skills/`;
+      console.log("[fetchAllSkills] Request URL:", requestUrl);
+
+      const response = await fetch(requestUrl, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
 
+      console.log("[fetchAllSkills] Response status:", response.status);
+      console.log("[fetchAllSkills] Response ok:", response.ok);
+      console.log(
+        "[fetchAllSkills] Response headers:",
+        Object.fromEntries(response.headers.entries()),
+      );
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("API Error:", response.status, errorText);
+        console.error("[fetchAllSkills] API Error - Status:", response.status);
+        console.error("[fetchAllSkills] API Error - Body:", errorText);
 
         if (response.status === 401) {
+          console.error(
+            "[fetchAllSkills] 401 Unauthorized - Token may be expired or invalid",
+          );
           throw new Error("Unauthorized. Please sign in again.");
         }
         if (response.status === 403) {
+          console.error(
+            "[fetchAllSkills] 403 Forbidden - User lacks admin privileges",
+          );
           throw new Error("Access denied. Admin privileges required.");
         }
 
         try {
           const errorData = JSON.parse(errorText);
+          console.error("[fetchAllSkills] Parsed error data:", errorData);
           throw new Error(
             errorData.detail ||
               errorData.error ||
               `Request failed with status ${response.status}`,
           );
-        } catch {
+        } catch (parseError) {
+          console.error(
+            "[fetchAllSkills] Could not parse error response as JSON:",
+            parseError,
+          );
           throw new Error(`Request failed with status ${response.status}`);
         }
       }
 
       const data = await response.json();
+      console.log("[fetchAllSkills] Response data type:", typeof data);
+      console.log("[fetchAllSkills] Response data:", data);
+      console.log("[fetchAllSkills] Is array:", Array.isArray(data));
+      console.log(
+        "[fetchAllSkills] Has results property:",
+        data?.results !== undefined,
+      );
+
       const skillsList = Array.isArray(data) ? data : data.results || [];
+      console.log("[fetchAllSkills] Skills list length:", skillsList.length);
+      console.log(
+        "[fetchAllSkills] First skill sample:",
+        skillsList[0] || "No skills",
+      );
+
       setSkills(skillsList);
+      console.log("[fetchAllSkills] Successfully set skills state");
     } catch (err: unknown) {
-      console.error("Error fetching skills:", err);
+      console.error("[fetchAllSkills] Catch block error:", err);
+      console.error(
+        "[fetchAllSkills] Error type:",
+        err instanceof Error ? err.constructor.name : typeof err,
+      );
+      console.error(
+        "[fetchAllSkills] Error message:",
+        err instanceof Error ? err.message : String(err),
+      );
       setError(err instanceof Error ? err.message : "Failed to fetch skills");
     } finally {
+      console.log("[fetchAllSkills] Completed (finally block)");
       setLoadingSkills(false);
     }
   }, []);
 
   // Fetch statistics for a specific volunteer
   const fetchVolunteerStats = useCallback(async (volunteerId: string) => {
+    console.log(
+      "[fetchVolunteerStats] Starting to fetch stats for volunteer:",
+      volunteerId,
+    );
+
     try {
       setLoadingStats(true);
       setError(null);
 
       const token = localStorage.getItem("accessToken");
+      console.log("[fetchVolunteerStats] Access token exists:", !!token);
+
       if (!token) {
+        console.error("[fetchVolunteerStats] No access token found");
         throw new Error("No access token found. Please sign in.");
       }
 
-      const response = await fetch(
-        `${APIURL}/api/volunteer-skills/statistics/?volunteer_id=${volunteerId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+      const requestUrl = `${APIURL}/api/volunteer-skills/statistics/?volunteer_id=${volunteerId}`;
+      console.log("[fetchVolunteerStats] Request URL:", requestUrl);
+
+      const response = await fetch(requestUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-      );
+      });
+
+      console.log("[fetchVolunteerStats] Response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Stats API Error:", response.status, errorText);
+        console.error(
+          "[fetchVolunteerStats] API Error - Status:",
+          response.status,
+        );
+        console.error("[fetchVolunteerStats] API Error - Body:", errorText);
 
         if (response.status === 400) {
+          console.error(
+            "[fetchVolunteerStats] 400 Bad Request - Invalid volunteer ID",
+          );
           throw new Error("Invalid volunteer ID or volunteer_id is required.");
         }
         if (response.status === 403) {
+          console.error(
+            "[fetchVolunteerStats] 403 Forbidden - Permission denied",
+          );
           throw new Error("You can only view your own statistics.");
         }
         if (response.status === 404) {
+          console.error(
+            "[fetchVolunteerStats] 404 Not Found - Volunteer does not exist",
+          );
           throw new Error("Volunteer not found.");
         }
 
         try {
           const errorData = JSON.parse(errorText);
+          console.error("[fetchVolunteerStats] Parsed error:", errorData);
           throw new Error(
             errorData.detail ||
               errorData.error ||
               `Request failed with status ${response.status}`,
           );
-        } catch {
+        } catch (parseError) {
+          console.error(
+            "[fetchVolunteerStats] Could not parse error as JSON:",
+            parseError,
+          );
           throw new Error(`Request failed with status ${response.status}`);
         }
       }
 
       const statsData = await response.json();
+      console.log("[fetchVolunteerStats] Stats data received:", statsData);
+      console.log(
+        "[fetchVolunteerStats] Total skills:",
+        statsData?.total_skills,
+      );
+      console.log(
+        "[fetchVolunteerStats] Verified skills:",
+        statsData?.verified_skills,
+      );
+      console.log(
+        "[fetchVolunteerStats] Proficiency distribution:",
+        statsData?.proficiency_distribution,
+      );
+
       setStats(statsData);
+      console.log("[fetchVolunteerStats] Successfully set stats state");
     } catch (err: unknown) {
-      console.error("Error fetching volunteer stats:", err);
+      console.error("[fetchVolunteerStats] Catch block error:", err);
+      console.error(
+        "[fetchVolunteerStats] Error message:",
+        err instanceof Error ? err.message : String(err),
+      );
       setError(
         err instanceof Error
           ? err.message
@@ -183,28 +286,43 @@ export default function AdminDashboardPage() {
       );
       setStats(null);
     } finally {
+      console.log("[fetchVolunteerStats] Completed (finally block)");
       setLoadingStats(false);
     }
   }, []);
 
   useEffect(() => {
+    console.log("[useEffect] Component mounted, fetching all skills...");
+    console.log(
+      "[useEffect] Current user in localStorage:",
+      localStorage.getItem("user"),
+    );
     fetchAllSkills();
   }, [fetchAllSkills]);
 
   const handleVolunteerClick = (volunteerId: string) => {
+    console.log("[handleVolunteerClick] Clicked volunteer ID:", volunteerId);
     setSelectedVolunteerId(volunteerId);
     setManualVolunteerId("");
     fetchVolunteerStats(volunteerId);
   };
 
   const handleManualIdSubmit = () => {
+    console.log("[handleManualIdSubmit] Manual ID entered:", manualVolunteerId);
     if (manualVolunteerId.trim()) {
+      console.log(
+        "[handleManualIdSubmit] Submitting manual ID:",
+        manualVolunteerId.trim(),
+      );
       setSelectedVolunteerId(manualVolunteerId.trim());
       fetchVolunteerStats(manualVolunteerId.trim());
+    } else {
+      console.log("[handleManualIdSubmit] Empty ID, ignoring");
     }
   };
 
   const handleClear = () => {
+    console.log("[handleClear] Clearing all state");
     setSelectedVolunteerId("");
     setManualVolunteerId("");
     setStats(null);

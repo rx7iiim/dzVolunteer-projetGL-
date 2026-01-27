@@ -15,6 +15,8 @@ import {
   MoreVertical,
   Edit,
   Eye,
+  Wrench,
+  Trash2,
 } from "lucide-react";
 
 // UI Components
@@ -34,6 +36,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Import the Create and Edit Modal Components
 import CreateMissionModal from "./CreateMissionModal";
@@ -56,6 +76,18 @@ interface Mission {
   estimated_total_hours: number;
 }
 
+interface Skill {
+  id: string;
+  name: string;
+}
+
+interface MissionSkillPayload {
+  skill_id: string;
+  requirement_level: string;
+  is_verification_required: boolean;
+  min_proficiency_level: string;
+}
+
 export default function OrganizationMissionsList() {
   // --- State ---
   const router = useRouter();
@@ -65,6 +97,22 @@ export default function OrganizationMissionsList() {
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Bulk Add Skills Modal State
+  const [isBulkSkillsModalOpen, setIsBulkSkillsModalOpen] = useState(false);
+  const [selectedMissionForSkills, setSelectedMissionForSkills] =
+    useState<Mission | null>(null);
+  const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
+  const [skillsToAdd, setSkillsToAdd] = useState<MissionSkillPayload[]>([
+    {
+      skill_id: "",
+      requirement_level: "required",
+      is_verification_required: true,
+      min_proficiency_level: "intermediate",
+    },
+  ]);
+  const [isAddingSkills, setIsAddingSkills] = useState(false);
+  const [addSkillsError, setAddSkillsError] = useState<string | null>(null);
 
   // --- Fetch Logic ---
   const fetchMissions = useCallback(async () => {
@@ -118,6 +166,138 @@ export default function OrganizationMissionsList() {
       setLoading(false);
     }
   }, []);
+
+  // Fetch available skills for the dropdown
+  const fetchSkills = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) return;
+
+      const response = await fetch(`${APIURL}/api/skills/skills/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const skillsList = Array.isArray(data) ? data : data.results || [];
+        setAvailableSkills(skillsList);
+      }
+    } catch (err) {
+      console.error("Error fetching skills:", err);
+    }
+  }, []);
+
+  // Bulk add skills to a mission
+  const bulkAddMissionSkills = async () => {
+    if (!selectedMissionForSkills) return;
+
+    // Filter out empty skill entries
+    const validSkills = skillsToAdd.filter((s) => s.skill_id);
+    if (validSkills.length === 0) {
+      setAddSkillsError("Please add at least one skill");
+      return;
+    }
+
+    setIsAddingSkills(true);
+    setAddSkillsError(null);
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      const payload = {
+        mission_id: selectedMissionForSkills.id,
+        skills: validSkills,
+      };
+
+      console.log("[bulkAddMissionSkills] Payload:", payload);
+
+      const response = await fetch(
+        `${APIURL}/api/skills/mission-skills/bulk_add/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      console.log("[bulkAddMissionSkills] Response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("[bulkAddMissionSkills] Error:", errorData);
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            `Failed to add skills (${response.status})`,
+        );
+      }
+
+      const result = await response.json();
+      console.log("[bulkAddMissionSkills] Success:", result);
+
+      // Reset and close modal
+      setSkillsToAdd([
+        {
+          skill_id: "",
+          requirement_level: "required",
+          is_verification_required: true,
+          min_proficiency_level: "intermediate",
+        },
+      ]);
+      setIsBulkSkillsModalOpen(false);
+      setSelectedMissionForSkills(null);
+    } catch (err: any) {
+      console.error("[bulkAddMissionSkills] Error:", err);
+      setAddSkillsError(err.message || "Failed to add skills");
+    } finally {
+      setIsAddingSkills(false);
+    }
+  };
+
+  // Add a new skill entry
+  const addSkillEntry = () => {
+    setSkillsToAdd([
+      ...skillsToAdd,
+      {
+        skill_id: "",
+        requirement_level: "required",
+        is_verification_required: true,
+        min_proficiency_level: "intermediate",
+      },
+    ]);
+  };
+
+  // Remove a skill entry
+  const removeSkillEntry = (index: number) => {
+    setSkillsToAdd(skillsToAdd.filter((_, i) => i !== index));
+  };
+
+  // Update a skill entry
+  const updateSkillEntry = (
+    index: number,
+    field: keyof MissionSkillPayload,
+    value: any,
+  ) => {
+    const updated = [...skillsToAdd];
+    updated[index] = { ...updated[index], [field]: value };
+    setSkillsToAdd(updated);
+  };
+
+  // Open the bulk skills modal
+  const openBulkSkillsModal = (mission: Mission) => {
+    setSelectedMissionForSkills(mission);
+    setIsBulkSkillsModalOpen(true);
+    setAddSkillsError(null);
+    fetchSkills();
+  };
 
   // Initial Load
   useEffect(() => {
@@ -247,6 +427,14 @@ export default function OrganizationMissionsList() {
                       >
                         <Edit className="mr-2 h-4 w-4" /> Edit Mission
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkSkillsModal(mission);
+                        }}
+                      >
+                        <Wrench className="mr-2 h-4 w-4" /> Add Required Skills
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -339,6 +527,158 @@ export default function OrganizationMissionsList() {
         missionId={editingMissionId || ""}
         onSuccess={fetchMissions}
       />
+
+      {/* Bulk Add Skills Modal */}
+      <Dialog
+        open={isBulkSkillsModalOpen}
+        onOpenChange={setIsBulkSkillsModalOpen}
+      >
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Required Skills</DialogTitle>
+            <DialogDescription>
+              Add skills required for: {selectedMissionForSkills?.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {addSkillsError && (
+              <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {addSkillsError}
+              </div>
+            )}
+
+            {skillsToAdd.map((skill, index) => (
+              <div key={index} className="border rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">
+                    Skill #{index + 1}
+                  </span>
+                  {skillsToAdd.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeSkillEntry(index)}
+                      className="text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Skill *</Label>
+                    <Select
+                      value={skill.skill_id}
+                      onValueChange={(value) =>
+                        updateSkillEntry(index, "skill_id", value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a skill" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableSkills.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Requirement Level</Label>
+                    <Select
+                      value={skill.requirement_level}
+                      onValueChange={(value) =>
+                        updateSkillEntry(index, "requirement_level", value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="required">Required</SelectItem>
+                        <SelectItem value="preferred">Preferred</SelectItem>
+                        <SelectItem value="optional">Optional</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Min Proficiency Level</Label>
+                    <Select
+                      value={skill.min_proficiency_level}
+                      onValueChange={(value) =>
+                        updateSkillEntry(index, "min_proficiency_level", value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="beginner">Beginner</SelectItem>
+                        <SelectItem value="intermediate">
+                          Intermediate
+                        </SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                        <SelectItem value="expert">Expert</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center space-x-2 pt-6">
+                    <Checkbox
+                      id={`verification-${index}`}
+                      checked={skill.is_verification_required}
+                      onCheckedChange={(checked) =>
+                        updateSkillEntry(
+                          index,
+                          "is_verification_required",
+                          !!checked,
+                        )
+                      }
+                    />
+                    <Label
+                      htmlFor={`verification-${index}`}
+                      className="text-sm"
+                    >
+                      Verification Required
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              variant="outline"
+              onClick={addSkillEntry}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add Another Skill
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkSkillsModalOpen(false)}
+              disabled={isAddingSkills}
+            >
+              Cancel
+            </Button>
+            <Button onClick={bulkAddMissionSkills} disabled={isAddingSkills}>
+              {isAddingSkills && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Add Skills to Mission
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

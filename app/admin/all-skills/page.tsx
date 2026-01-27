@@ -28,8 +28,28 @@ import {
   User,
   Award,
   Eye,
+  Plus,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const APIURL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -43,12 +63,58 @@ interface VolunteerSkill {
   verification_status: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface CreateSkillPayload {
+  name: string;
+  description: string;
+  category: string;
+  verification_requirement: string;
+}
+
+interface CreateCategoryPayload {
+  name: string;
+  description: string;
+}
+
 export default function AllSkillsPage() {
   const router = useRouter();
   const [skills, setSkills] = useState<VolunteerSkill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Create skill modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [categories] = useState<Category[]>([
+    {
+      id: "11aa05f0-4e99-4325-aea5-1c7b68cd3745",
+      name: "Construction & Building",
+    },
+  ]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [newSkill, setNewSkill] = useState<CreateSkillPayload>({
+    name: "",
+    description: "",
+    category: "11aa05f0-4e99-4325-aea5-1c7b68cd3745",
+    verification_requirement: "document",
+  });
+
+  // Create category modal state
+  const [isCreateCategoryModalOpen, setIsCreateCategoryModalOpen] =
+    useState(false);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [createCategoryError, setCreateCategoryError] = useState<string | null>(
+    null,
+  );
+  const [newCategory, setNewCategory] = useState<CreateCategoryPayload>({
+    name: "",
+    description: "",
+  });
 
   const fetchAllSkills = useCallback(async () => {
     try {
@@ -83,6 +149,133 @@ export default function AllSkillsPage() {
       setLoading(false);
     }
   }, []);
+
+  // Create a new skill
+  const createSkill = async () => {
+    if (!newSkill.name.trim()) {
+      setCreateError("Skill name is required");
+      return;
+    }
+    if (!newSkill.category) {
+      setCreateError("Please select a category");
+      return;
+    }
+
+    setIsCreating(true);
+    setCreateError(null);
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      console.log("[createSkill] Creating skill with payload:", newSkill);
+
+      const response = await fetch(`${APIURL}/api/skills/skills/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newSkill),
+      });
+
+      console.log("[createSkill] Response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("[createSkill] Error response:", errorData);
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            `Failed to create skill (${response.status})`,
+        );
+      }
+
+      const createdSkill = await response.json();
+      console.log("[createSkill] Skill created successfully:", createdSkill);
+
+      // Reset form and close modal
+      setNewSkill({
+        name: "",
+        description: "",
+        category: "11aa05f0-4e99-4325-aea5-1c7b68cd3745",
+        verification_requirement: "document",
+      });
+      setIsCreateModalOpen(false);
+
+      // Refresh the skills list
+      fetchAllSkills();
+    } catch (err: any) {
+      console.error("[createSkill] Error:", err);
+      setCreateError(err.message || "Failed to create skill");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Create a new category
+  const createCategory = async () => {
+    if (!newCategory.name.trim()) {
+      setCreateCategoryError("Category name is required");
+      return;
+    }
+
+    setIsCreatingCategory(true);
+    setCreateCategoryError(null);
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        throw new Error("No access token found");
+      }
+
+      console.log(
+        "[createCategory] Creating category with payload:",
+        newCategory,
+      );
+
+      const response = await fetch(`${APIURL}/api/skills/skill-categories/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newCategory),
+      });
+
+      console.log("[createCategory] Response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("[createCategory] Error response:", errorData);
+        throw new Error(
+          errorData.detail ||
+            errorData.error ||
+            `Failed to create category (${response.status})`,
+        );
+      }
+
+      const createdCategory = await response.json();
+      console.log(
+        "[createCategory] Category created successfully:",
+        createdCategory,
+      );
+
+      // Reset form and close modal
+      setNewCategory({
+        name: "",
+        description: "",
+      });
+      setIsCreateCategoryModalOpen(false);
+    } catch (err: any) {
+      console.error("[createCategory] Error:", err);
+      setCreateCategoryError(err.message || "Failed to create category");
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
 
   useEffect(() => {
     fetchAllSkills();
@@ -139,15 +332,221 @@ export default function AllSkillsPage() {
             <CardTitle>Volunteer Skills</CardTitle>
             <CardDescription>All skills across all volunteers</CardDescription>
           </div>
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search skills..."
-              className="pl-8 w-full sm:w-64"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search skills..."
+                className="pl-8 w-full sm:w-64"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Create Skill Button */}
+            <Dialog
+              open={isCreateModalOpen}
+              onOpenChange={setIsCreateModalOpen}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Skill
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Skill</DialogTitle>
+                  <DialogDescription>
+                    Add a new skill to the platform that volunteers can add to
+                    their profiles.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  {createError && (
+                    <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {createError}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="skill-name">Skill Name *</Label>
+                    <Input
+                      id="skill-name"
+                      placeholder="e.g. Construction Project Management"
+                      value={newSkill.name}
+                      onChange={(e) =>
+                        setNewSkill({ ...newSkill, name: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="skill-description">Description</Label>
+                    <Textarea
+                      id="skill-description"
+                      placeholder="e.g. Planning, coordinating, and supervising construction projects"
+                      value={newSkill.description}
+                      onChange={(e) =>
+                        setNewSkill({
+                          ...newSkill,
+                          description: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="skill-category">Category *</Label>
+                    <Select
+                      value={newSkill.category}
+                      onValueChange={(value) =>
+                        setNewSkill({ ...newSkill, category: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="verification-requirement">
+                      Verification Requirement
+                    </Label>
+                    <Select
+                      value={newSkill.verification_requirement}
+                      onValueChange={(value) =>
+                        setNewSkill({
+                          ...newSkill,
+                          verification_requirement: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select verification type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="document">
+                          Document Verification
+                        </SelectItem>
+                        <SelectItem value="self_declared">
+                          Self Declared
+                        </SelectItem>
+                        <SelectItem value="test">Test/Assessment</SelectItem>
+                        <SelectItem value="reference">
+                          Reference Check
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    disabled={isCreating}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={createSkill} disabled={isCreating}>
+                    {isCreating && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    Create Skill
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Create Category Button */}
+            <Dialog
+              open={isCreateCategoryModalOpen}
+              onOpenChange={setIsCreateCategoryModalOpen}
+            >
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Category
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Category</DialogTitle>
+                  <DialogDescription>
+                    Add a new skill category to organize skills on the platform.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  {createCategoryError && (
+                    <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {createCategoryError}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="category-name">Category Name *</Label>
+                    <Input
+                      id="category-name"
+                      placeholder="e.g. Leadership & Management"
+                      value={newCategory.name}
+                      onChange={(e) =>
+                        setNewCategory({ ...newCategory, name: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="category-description">Description</Label>
+                    <Textarea
+                      id="category-description"
+                      placeholder="e.g. Leadership, team management, and organizational skills"
+                      value={newCategory.description}
+                      onChange={(e) =>
+                        setNewCategory({
+                          ...newCategory,
+                          description: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateCategoryModalOpen(false)}
+                    disabled={isCreatingCategory}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={createCategory}
+                    disabled={isCreatingCategory}
+                  >
+                    {isCreatingCategory && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    Create Category
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
         <CardContent>

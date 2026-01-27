@@ -34,6 +34,26 @@ interface ApplicationResponse {
   };
 }
 
+interface RequiredSkill {
+  skill_name: string;
+  min_proficiency: string;
+  verification_required: boolean;
+  volunteer_has_skill: boolean;
+  volunteer_proficiency: string;
+  meets_proficiency: boolean;
+  is_verified: boolean;
+  verification_status: string;
+}
+
+interface RequirementCheckResponse {
+  required_skills: RequiredSkill[];
+  preferred_skills: any[];
+  volunteer_qualifications: any[];
+  missing_requirements: string[];
+  can_apply: boolean;
+  already_applied: boolean;
+}
+
 interface RequirementSummary {
   mission_id: string;
   mission_title: string;
@@ -126,12 +146,51 @@ class MissionService {
 
   async checkMissionRequirements(
     missionId: string,
-  ): Promise<{ data: RequirementSummary }> {
-    const response = await axios.get<RequirementSummary>(
-      `${API_BASE_URL}/api/missions/${missionId}/check-requirements/`,
-      { headers: this.getAuthHeaders() },
+  ): Promise<{ data: RequirementCheckResponse }> {
+    console.log(
+      "[MissionService.checkMissionRequirements] Mission ID:",
+      missionId,
     );
-    return response;
+    console.log(
+      "[MissionService.checkMissionRequirements] API URL:",
+      `${API_BASE_URL}/api/missions/${missionId}/check-requirements/`,
+    );
+
+    const token = localStorage.getItem("accessToken");
+    console.log(
+      "[MissionService.checkMissionRequirements] Token exists:",
+      !!token,
+    );
+    console.log(
+      "[MissionService.checkMissionRequirements] Token preview:",
+      token ? `${token.substring(0, 30)}...` : "null",
+    );
+
+    try {
+      const response = await axios.get<RequirementCheckResponse>(
+        `${API_BASE_URL}/api/missions/${missionId}/check-requirements/`,
+        { headers: this.getAuthHeaders() },
+      );
+      console.log(
+        "[MissionService.checkMissionRequirements] Success:",
+        response.status,
+      );
+      return response;
+    } catch (error: any) {
+      console.error(
+        "[MissionService.checkMissionRequirements] Error status:",
+        error.response?.status,
+      );
+      console.error(
+        "[MissionService.checkMissionRequirements] Error data:",
+        error.response?.data,
+      );
+      console.error(
+        "[MissionService.checkMissionRequirements] Error headers:",
+        error.response?.headers,
+      );
+      throw error;
+    }
   }
 }
 
