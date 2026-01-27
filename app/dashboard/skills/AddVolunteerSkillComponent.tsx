@@ -276,12 +276,12 @@ export default function AddVolunteerSkillComponent({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="space-y-4 sm:space-y-6 py-2 sm:py-4 max-h-[70vh] overflow-y-auto">
             {/* Error Banner */}
             {error && (
-              <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4" />
-                {error}
+              <div className="bg-destructive/15 text-destructive text-xs sm:text-sm p-2 sm:p-3 rounded-md flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 flex-shrink-0" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -301,7 +301,7 @@ export default function AddVolunteerSkillComponent({
               </div>
 
               {/* Scrollable List */}
-              <div className="h-[200px] w-full border rounded-md bg-slate-50 overflow-y-auto p-2">
+              <div className="h-[150px] sm:h-[200px] w-full border rounded-md bg-slate-50 overflow-y-auto p-1.5 sm:p-2">
                 {isLoadingSkills ? (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
                     <Loader2 className="h-6 w-6 animate-spin" />
@@ -371,9 +371,9 @@ export default function AddVolunteerSkillComponent({
             </div>
 
             {/* Proficiency & Years of Experience */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Proficiency *</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Proficiency *</Label>
                 <Select value={proficiency} onValueChange={setProficiency}>
                   <SelectTrigger>
                     <SelectValue />
@@ -387,8 +387,8 @@ export default function AddVolunteerSkillComponent({
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Years of Experience *</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm">Years of Experience *</Label>
                 <Input
                   type="number"
                   min="0"
@@ -401,8 +401,8 @@ export default function AddVolunteerSkillComponent({
             </div>
 
             {/* Notes */}
-            <div className="space-y-2">
-              <Label>Notes (Optional)</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-sm">Notes (Optional)</Label>
               <Input
                 placeholder="e.g. I have used this skill in several previous projects."
                 value={notes}
@@ -411,8 +411,8 @@ export default function AddVolunteerSkillComponent({
             </div>
 
             {/* Last Used Date */}
-            <div className="space-y-2">
-              <Label>Last Used (Optional)</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-sm">Last Used (Optional)</Label>
               <Input
                 type="date"
                 value={lastUsedDate}
@@ -421,7 +421,7 @@ export default function AddVolunteerSkillComponent({
             </div>
 
             {/* Evidence Section */}
-            <div className="space-y-4 border-t pt-4">
+            <div className="space-y-3 sm:space-y-4 border-t pt-3 sm:pt-4">
               <div className="flex items-center gap-2">
                 <h4 className="text-sm font-semibold">Evidence</h4>
                 <Badge variant="outline" className="text-[10px] h-5">
@@ -429,9 +429,10 @@ export default function AddVolunteerSkillComponent({
                 </Badge>
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <LinkIcon className="h-3 w-3" /> Project / Portfolio URL
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <LinkIcon className="h-3 w-3 flex-shrink-0" /> Project /
+                  Portfolio URL
                 </Label>
                 <Input
                   placeholder="https://github.com/..."
@@ -440,11 +441,12 @@ export default function AddVolunteerSkillComponent({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <FileText className="h-3 w-3" /> Certificate / Document
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <FileText className="h-3 w-3 flex-shrink-0" /> Certificate /
+                  Document
                 </Label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <label
                     htmlFor="file-upload"
                     className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
@@ -476,7 +478,7 @@ export default function AddVolunteerSkillComponent({
             </div>
 
             {/* Primary Toggle */}
-            <div className="flex items-center space-x-2 border-t pt-4">
+            <div className="flex items-center space-x-2 border-t pt-3 sm:pt-4">
               <Checkbox
                 id="primary"
                 checked={isPrimary}
@@ -494,8 +496,12 @@ export default function AddVolunteerSkillComponent({
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 pt-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button
@@ -514,19 +520,19 @@ export default function AddVolunteerSkillComponent({
 
       {/* --- STEP 2: SUCCESS --- */}
       {step === "success" && responseData && (
-        <div className="py-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <CheckCircle2 className="h-8 w-8 text-green-600" />
+        <div className="py-4 sm:py-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-green-100 flex items-center justify-center mb-3 sm:mb-4">
+            <CheckCircle2 className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
           </div>
 
-          <h2 className="text-xl font-semibold mb-2">
+          <h2 className="text-lg sm:text-xl font-semibold mb-2">
             Skill Added Successfully!
           </h2>
-          <p className="text-muted-foreground text-sm mb-6 max-w-xs">
+          <p className="text-muted-foreground text-xs sm:text-sm mb-4 sm:mb-6 max-w-xs">
             Your skill has been added to your profile.
           </p>
 
-          <div className="w-full bg-slate-50 border rounded-lg p-4 text-left shadow-sm mb-6">
+          <div className="w-full bg-slate-50 border rounded-lg p-3 sm:p-4 text-left shadow-sm mb-4 sm:mb-6">
             <div className="flex justify-between items-start mb-3">
               <div>
                 <h3 className="font-semibold text-lg text-foreground">
