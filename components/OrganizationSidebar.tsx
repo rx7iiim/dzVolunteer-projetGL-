@@ -34,11 +34,6 @@ export default function OrganizationSidebar() {
       icon: Briefcase,
     },
     {
-      title: "Applicants",
-      href: "/apllyers",
-      icon: Users,
-    },
-    {
       title: "Profile",
       href: "/profile",
       icon: User,

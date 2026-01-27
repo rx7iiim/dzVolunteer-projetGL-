@@ -317,7 +317,7 @@ export default function OrganizationMissionsList() {
                   </Button>
                   <Button variant="outline" size="sm" asChild>
                     <Link
-                      href={`/apllyers/${mission.id}/participants`}
+                      href={`/my-missions/${mission.id}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Users className="h-4 w-4 mr-2" />
