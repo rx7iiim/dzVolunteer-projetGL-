@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,37 @@ export default function SignIn() {
   }>({});
 
   const APIURL = process.env.NEXT_PUBLIC_API_URL;
+
+  // Check for existing access token and redirect if already logged in
+  useEffect(() => {
+    const accessToken = localStorage.getItem("accessToken");
+    const userString = localStorage.getItem("user");
+
+    if (accessToken && userString) {
+      try {
+        const user = JSON.parse(userString);
+        // Redirect based on user type
+        if (
+          user.user_type?.toLowerCase() === "admin" ||
+          user.user_type === "ADMIN"
+        ) {
+          router.push("/admin/all-skills");
+        } else if (
+          user.user_type?.toLowerCase() === "organization" ||
+          user.user_type === "ORGANIZATION"
+        ) {
+          router.push("/home");
+        } else {
+          router.push("/dashboard/home");
+        }
+      } catch (e) {
+        // Invalid user data, clear storage
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+      }
+    }
+  }, [router]);
 
   // Validate email format
   const validateEmail = (email: string): boolean => {
